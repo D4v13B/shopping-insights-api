@@ -1,0 +1,2786 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Shopping Insights API",
+    "version": "1.0.0",
+    "description": "API analítica de solo lectura sobre el dataset Customer Shopping Trends. Los errores siguen RFC 9457 (application/problem+json). Todos los endpoints analíticos aceptan los mismos filtros opcionales."
+  },
+  "tags": [
+    {
+      "name": "Analítica",
+      "description": "KPIs y agregaciones para el dashboard"
+    },
+    {
+      "name": "Compras",
+      "description": "Explorador de compras y exportación"
+    },
+    {
+      "name": "ETL",
+      "description": "Auditoría y disparo del ETL"
+    },
+    {
+      "name": "Sistema"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Necesaria solo para POST /api/v1/etl/run"
+      }
+    },
+    "schemas": {
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "example": "ok"
+          },
+          "database": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down"
+            ],
+            "example": "up"
+          },
+          "uptimeSeconds": {
+            "type": "number",
+            "example": 42
+          }
+        },
+        "required": [
+          "status",
+          "database",
+          "uptimeSeconds"
+        ]
+      },
+      "FilterOptions": {
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "Accessories",
+              "Clothing"
+            ]
+          },
+          "seasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "Spring",
+              "Summer",
+              "Fall",
+              "Winter"
+            ]
+          },
+          "genders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "Female",
+              "Male"
+            ]
+          },
+          "ageBands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "18-24",
+              "25-34"
+            ]
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "Midwest",
+              "Northeast"
+            ]
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "name"
+              ]
+            },
+            "example": [
+              {
+                "code": "AL",
+                "name": "Alabama"
+              }
+            ]
+          },
+          "paymentMethods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "Bank Transfer",
+              "Cash"
+            ]
+          }
+        },
+        "required": [
+          "categories",
+          "seasons",
+          "genders",
+          "ageBands",
+          "regions",
+          "states",
+          "paymentMethods"
+        ]
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "urn:shopping-insights:problem:validation-error"
+          },
+          "title": {
+            "type": "string",
+            "example": "Parámetros inválidos"
+          },
+          "status": {
+            "type": "integer",
+            "example": 422
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "example": "/api/v1/purchases"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "message"
+              ]
+            },
+            "example": [
+              {
+                "path": "pageSize",
+                "message": "Too big: expected number to be <=100"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "instance"
+        ]
+      },
+      "Kpis": {
+        "type": "object",
+        "properties": {
+          "revenue": {
+            "type": "number",
+            "example": 233081
+          },
+          "orders": {
+            "type": "integer",
+            "example": 3900
+          },
+          "customers": {
+            "type": "integer",
+            "example": 3900
+          },
+          "avgTicket": {
+            "type": "number",
+            "example": 59.76
+          },
+          "avgRating": {
+            "type": "number",
+            "example": 3.75
+          },
+          "subscribedPct": {
+            "type": "number",
+            "example": 27,
+            "description": "% de clientes suscritos"
+          },
+          "promoPct": {
+            "type": "number",
+            "example": 43,
+            "description": "% de órdenes con promoción"
+          }
+        },
+        "required": [
+          "revenue",
+          "orders",
+          "customers",
+          "avgTicket",
+          "avgRating",
+          "subscribedPct",
+          "promoPct"
+        ]
+      },
+      "SalesByCategory": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": "string",
+              "example": "Clothing"
+            },
+            "revenue": {
+              "type": "number",
+              "example": 104264
+            },
+            "orders": {
+              "type": "integer",
+              "example": 1737
+            },
+            "avgTicket": {
+              "type": "number",
+              "example": 60.03
+            }
+          },
+          "required": [
+            "category",
+            "revenue",
+            "orders",
+            "avgTicket"
+          ]
+        }
+      },
+      "SalesBySeason": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "season": {
+              "type": "string",
+              "example": "Fall"
+            },
+            "category": {
+              "type": "string",
+              "example": "Clothing"
+            },
+            "revenue": {
+              "type": "number",
+              "example": 27000
+            },
+            "orders": {
+              "type": "integer",
+              "example": 450
+            }
+          },
+          "required": [
+            "season",
+            "category",
+            "revenue",
+            "orders"
+          ]
+        }
+      },
+      "ProductRanking": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "rank": {
+              "type": "integer",
+              "example": 1
+            },
+            "productId": {
+              "type": "integer",
+              "example": 4
+            },
+            "itemName": {
+              "type": "string",
+              "example": "Blouse"
+            },
+            "category": {
+              "type": "string",
+              "example": "Clothing"
+            },
+            "revenue": {
+              "type": "number",
+              "example": 10410
+            },
+            "orders": {
+              "type": "integer",
+              "example": 171
+            },
+            "avgRating": {
+              "type": "number",
+              "example": 3.75
+            }
+          },
+          "required": [
+            "rank",
+            "productId",
+            "itemName",
+            "category",
+            "revenue",
+            "orders",
+            "avgRating"
+          ]
+        }
+      },
+      "Segments": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "segment": {
+              "type": "string",
+              "example": "Campeones"
+            },
+            "customers": {
+              "type": "integer",
+              "example": 429
+            },
+            "revenue": {
+              "type": "number",
+              "example": 30000
+            },
+            "avgTicket": {
+              "type": "number",
+              "example": 70.1
+            },
+            "avgAnnualValue": {
+              "type": "number",
+              "example": 2900.5
+            },
+            "avgPreviousPurchases": {
+              "type": "number",
+              "example": 42.3
+            },
+            "sharePct": {
+              "type": "number",
+              "example": 11
+            }
+          },
+          "required": [
+            "segment",
+            "customers",
+            "revenue",
+            "avgTicket",
+            "avgAnnualValue",
+            "avgPreviousPurchases",
+            "sharePct"
+          ]
+        }
+      },
+      "Demographics": {
+        "type": "object",
+        "properties": {
+          "matrix": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ageBand": {
+                  "type": "string",
+                  "example": "25-34"
+                },
+                "gender": {
+                  "type": "string",
+                  "example": "Female"
+                },
+                "customers": {
+                  "type": "integer",
+                  "example": 240
+                },
+                "revenue": {
+                  "type": "number",
+                  "example": 14200
+                },
+                "avgTicket": {
+                  "type": "number",
+                  "example": 59.2
+                }
+              },
+              "required": [
+                "ageBand",
+                "gender",
+                "customers",
+                "revenue",
+                "avgTicket"
+              ]
+            }
+          },
+          "subscription": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subscribed": {
+                  "type": "boolean"
+                },
+                "gender": {
+                  "type": "string",
+                  "example": "Male"
+                },
+                "customers": {
+                  "type": "integer",
+                  "example": 1053
+                },
+                "revenue": {
+                  "type": "number",
+                  "example": 62645
+                },
+                "avgTicket": {
+                  "type": "number",
+                  "example": 59.49
+                },
+                "avgRating": {
+                  "type": "number",
+                  "example": 3.74
+                }
+              },
+              "required": [
+                "subscribed",
+                "gender",
+                "customers",
+                "revenue",
+                "avgTicket",
+                "avgRating"
+              ]
+            }
+          }
+        },
+        "required": [
+          "matrix",
+          "subscription"
+        ]
+      },
+      "States": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "stateCode": {
+              "type": "string",
+              "example": "MT"
+            },
+            "stateName": {
+              "type": "string",
+              "example": "Montana"
+            },
+            "region": {
+              "type": "string",
+              "example": "West"
+            },
+            "revenue": {
+              "type": "number",
+              "example": 5784
+            },
+            "orders": {
+              "type": "integer",
+              "example": 96
+            },
+            "avgTicket": {
+              "type": "number",
+              "example": 60.25
+            }
+          },
+          "required": [
+            "stateCode",
+            "stateName",
+            "region",
+            "revenue",
+            "orders",
+            "avgTicket"
+          ]
+        }
+      },
+      "PurchasePage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Purchase"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PageMeta"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "Purchase": {
+        "type": "object",
+        "properties": {
+          "purchaseId": {
+            "type": "integer",
+            "example": 1
+          },
+          "customerId": {
+            "type": "integer",
+            "example": 1
+          },
+          "itemName": {
+            "type": "string",
+            "example": "Blouse"
+          },
+          "category": {
+            "type": "string",
+            "example": "Clothing"
+          },
+          "amountUsd": {
+            "type": "number",
+            "example": 53
+          },
+          "season": {
+            "type": "string",
+            "example": "Winter"
+          },
+          "size": {
+            "type": "string",
+            "example": "L"
+          },
+          "color": {
+            "type": "string",
+            "example": "Gray"
+          },
+          "reviewRating": {
+            "type": "number",
+            "example": 3.1
+          },
+          "promoUsed": {
+            "type": "boolean"
+          },
+          "stateCode": {
+            "type": "string",
+            "example": "KY"
+          },
+          "stateName": {
+            "type": "string",
+            "example": "Kentucky"
+          },
+          "region": {
+            "type": "string",
+            "example": "South"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "example": "Credit Card"
+          },
+          "shippingType": {
+            "type": "string",
+            "example": "Express"
+          },
+          "gender": {
+            "type": "string",
+            "example": "Male"
+          },
+          "age": {
+            "type": "integer",
+            "example": 55
+          },
+          "ageBand": {
+            "type": "string",
+            "example": "55-64"
+          },
+          "subscribed": {
+            "type": "boolean"
+          },
+          "segment": {
+            "type": "string",
+            "example": "Leales"
+          }
+        },
+        "required": [
+          "purchaseId",
+          "customerId",
+          "itemName",
+          "category",
+          "amountUsd",
+          "season",
+          "size",
+          "color",
+          "reviewRating",
+          "promoUsed",
+          "stateCode",
+          "stateName",
+          "region",
+          "paymentMethod",
+          "shippingType",
+          "gender",
+          "age",
+          "ageBand",
+          "subscribed",
+          "segment"
+        ]
+      },
+      "PageMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "pageSize",
+          "total",
+          "totalPages"
+        ]
+      },
+      "EtlRun": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "0b8f8a8e-6c0e-4b8e-9d2a-1f7f0b8a9c11"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "requested",
+              "running",
+              "success",
+              "failed"
+            ],
+            "example": "success"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "startup",
+              "cli",
+              "api"
+            ],
+            "example": "api"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "local"
+          },
+          "requestedAt": {
+            "type": "string",
+            "example": "2026-10-19T19:36:27.239Z"
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rowsRead": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 3900
+          },
+          "rowsValid": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 3900
+          },
+          "rowsRejected": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 0
+          },
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 298
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "qualityReport": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "description": "Reporte de calidad de datos generado por el ETL"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "trigger",
+          "source",
+          "requestedAt",
+          "startedAt",
+          "finishedAt",
+          "rowsRead",
+          "rowsValid",
+          "rowsRejected",
+          "durationMs",
+          "error",
+          "qualityReport"
+        ]
+      },
+      "EtlRunAccepted": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "requested"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Estado de la API y de la conexión a la base",
+        "responses": {
+          "200": {
+            "description": "Todo funciona",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "La base no responde",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/filters/options": {
+      "get": {
+        "tags": [
+          "Analítica"
+        ],
+        "summary": "Valores disponibles para cada filtro",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterOptions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/kpis": {
+      "get": {
+        "tags": [
+          "Analítica"
+        ],
+        "summary": "KPIs globales",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Kpis"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sales/by-category": {
+      "get": {
+        "tags": [
+          "Analítica"
+        ],
+        "summary": "Ingresos y órdenes por categoría",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesByCategory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sales/by-season": {
+      "get": {
+        "tags": [
+          "Analítica"
+        ],
+        "summary": "Ingresos por temporada y categoría",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesBySeason"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products/ranking": {
+      "get": {
+        "tags": [
+          "Analítica"
+        ],
+        "summary": "Top N productos por métrica",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "revenue",
+                "orders",
+                "rating"
+              ],
+              "default": "revenue",
+              "example": "revenue"
+            },
+            "required": false,
+            "name": "metric",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 25,
+              "default": 10,
+              "example": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductRanking"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customers/segments": {
+      "get": {
+        "tags": [
+          "Analítica"
+        ],
+        "summary": "Clientes, ingresos y ticket por segmento",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Segments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customers/demographics": {
+      "get": {
+        "tags": [
+          "Analítica"
+        ],
+        "summary": "Matriz rango de edad × género y suscripción × género",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Demographics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/geo/states": {
+      "get": {
+        "tags": [
+          "Analítica"
+        ],
+        "summary": "Ventas por estado (siempre los 50)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/States"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/purchases": {
+      "get": {
+        "tags": [
+          "Compras"
+        ],
+        "summary": "Compras paginadas, ordenables y filtrables",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60,
+              "example": "jacket",
+              "description": "Busca en el producto"
+            },
+            "required": false,
+            "description": "Busca en el producto",
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(purchaseId|itemName|category|amountUsd|reviewRating|season|stateName|age):(asc|desc)$",
+              "default": "purchaseId:asc",
+              "example": "purchaseId:asc"
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "example": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de compras",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchasePage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/purchases/export": {
+      "get": {
+        "tags": [
+          "Compras"
+        ],
+        "summary": "Exporta a CSV (streaming) las compras con los mismos filtros",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Accessories",
+                "Clothing",
+                "Footwear",
+                "Outerwear"
+              ],
+              "example": "Clothing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Spring",
+                "Summer",
+                "Fall",
+                "Winter"
+              ],
+              "example": "Winter"
+            },
+            "required": false,
+            "name": "season",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Female",
+                "Male"
+              ]
+            },
+            "required": false,
+            "name": "gender",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "18-24",
+                "25-34",
+                "35-44",
+                "45-54",
+                "55-64",
+                "65+"
+              ],
+              "example": "25-34"
+            },
+            "required": false,
+            "name": "ageBand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Northeast",
+                "Midwest",
+                "South",
+                "West"
+              ]
+            },
+            "required": false,
+            "name": "region",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "example": "TX",
+              "description": "Código USPS del estado"
+            },
+            "required": false,
+            "description": "Código USPS del estado",
+            "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "subscribed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "required": false,
+            "name": "promoUsed",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "example": "PayPal",
+              "description": "Método de pago de la compra"
+            },
+            "required": false,
+            "description": "Método de pago de la compra",
+            "name": "paymentMethod",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60,
+              "example": "jacket",
+              "description": "Busca en el producto"
+            },
+            "required": false,
+            "description": "Busca en el producto",
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(purchaseId|itemName|category|amountUsd|reviewRating|season|stateName|age):(asc|desc)$",
+              "default": "purchaseId:asc",
+              "example": "purchaseId:asc"
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo CSV (UTF-8 con BOM)",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/etl/runs": {
+      "get": {
+        "tags": [
+          "ETL"
+        ],
+        "summary": "Últimas ejecuciones del ETL con su reporte de calidad",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "example": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ejecuciones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EtlRun"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/etl/runs/{id}": {
+      "get": {
+        "tags": [
+          "ETL"
+        ],
+        "summary": "Detalle de una ejecución",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "0b8f8a8e-6c0e-4b8e-9d2a-1f7f0b8a9c11"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ejecución",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EtlRun"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/etl/run": {
+      "post": {
+        "tags": [
+          "ETL"
+        ],
+        "summary": "Solicita una recarga del ETL (asíncrona)",
+        "description": "Registra la solicitud en etl_runs y avisa al worker con NOTIFY. Seguir el estado en el `Location` devuelto.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Solicitud aceptada",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "example": "/api/v1/etl/runs/{id}"
+                },
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EtlRunAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta la API key o no es válida",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Ya hay una ejecución solicitada o en curso",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetros inválidos",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Límite de solicitudes superado",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error interno",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}
