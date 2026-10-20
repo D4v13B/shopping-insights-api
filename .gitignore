@@ -1,0 +1,18 @@
+# Dependencias
+node_modules/
+
+# Builds
+dist/
+*.tsbuildinfo
+coverage/
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# SO / editores
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

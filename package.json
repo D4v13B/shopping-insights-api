@@ -1,0 +1,36 @@
+{
+  "name": "shopping-insights-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "bun build src/index.ts --target bun --outdir dist",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun scripts/migrate.ts",
+    "gen:api": "bun scripts/gen-openapi.ts",
+    "bench": "bun scripts/bench.ts",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "dependencies": {
+    "@hono/swagger-ui": "0.6.1",
+    "@hono/zod-openapi": "1.6.3",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.13",
+    "hono-rate-limiter": "0.5.4",
+    "pino": "10.4.0",
+    "postgres": "3.4.9",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/bun": "1.4.3",
+    "drizzle-kit": "0.31.11",
+    "pino-pretty": "^13.2.0",
+    "typescript": "5.9.3"
+  }
+}
