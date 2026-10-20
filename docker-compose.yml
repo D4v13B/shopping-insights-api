@@ -1,0 +1,101 @@
+# Stack completo. Requiere los tres repos clonados como carpetas hermanas:
+#   shopping-insights-api/  shopping-insights-etl/  shopping-insights-web/
+# (ETL_REPO y WEB_REPO en .env permiten otras rutas).
+# Levanta todo con: cp .env.example .env && docker compose up --build
+# Orden: db → migrate → etl (carga inicial) → api + etl-worker → web
+name: shopping-insights
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    image: postgres:18.1-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ETL_DB_PASSWORD: ${ETL_DB_PASSWORD}
+      API_DB_PASSWORD: ${API_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./infra/postgres/init-roles.sh:/docker-entrypoint-initdb.d/10-init-roles.sh:ro
+    healthcheck:
+      # Por TCP: durante la inicialización Postgres solo escucha en el socket local, así el
+      # healthcheck no pasa antes de que existan los roles.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+
+  migrate:
+    build: { context: . }
+    image: shopping-insights-api
+    command: ["bun", "scripts/migrate.ts"]
+    environment:
+      DATABASE_URL_MIGRATE: ${DATABASE_URL_MIGRATE}
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+    logging: *logging
+
+  etl:
+    build: { context: "${ETL_REPO:-../shopping-insights-etl}" }
+    image: shopping-insights-etl
+    command: ["run", "--trigger", "startup"]
+    environment: &etl-env
+      DATABASE_URL_ETL: ${DATABASE_URL_ETL}
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
+      KAGGLE_KEY: ${KAGGLE_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: "no"
+    logging: *logging
+
+  etl-worker:
+    image: shopping-insights-etl
+    command: ["worker"]
+    environment: *etl-env
+    depends_on:
+      etl: { condition: service_completed_successfully }
+    restart: unless-stopped
+    stop_grace_period: 15s
+    logging: *logging
+
+  api:
+    image: shopping-insights-api
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL_API: ${DATABASE_URL_API}
+      ETL_API_KEY: ${ETL_API_KEY}
+      WEB_ORIGIN: ${WEB_ORIGIN}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports: ["8080:8080"]
+    depends_on:
+      etl: { condition: service_completed_successfully }
+    restart: unless-stopped
+    logging: *logging
+
+  web:
+    build:
+      context: ${WEB_REPO:-../shopping-insights-web}
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    image: shopping-insights-web
+    environment:
+      PORT: 3000
+      API_INTERNAL_URL: ${API_INTERNAL_URL}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+    ports: ["3000:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  pgdata:
