@@ -80,8 +80,8 @@ jobs:
         run: |
           uv sync --frozen --no-dev
           uv run shopping-etl run
-      - name: bun test con cobertura
-        run: bun test --coverage
+      - name: bun test
+        run: bun test
 
   docker:
     name: Build de la imagen
