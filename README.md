@@ -15,18 +15,34 @@ El proyecto ocupa tres repositorios:
 
 ![Vista Resumen del dashboard](https://raw.githubusercontent.com/D4v13B/shopping-insights-web/main/docs/img/resumen.png)
 
+## Despliegue
+
+Los tres repos **deben clonarse en la misma carpeta padre** (hermanos). El único `.env` del stack
+completo vive **aquí** (`shopping-insights-api/.env`, copiado desde `.env.example`).
+
+```
+carpeta-padre/
+├── shopping-insights-etl/    ← incluye data/shopping_trends.csv (respaldo sin Kaggle)
+├── shopping-insights-api/    ← docker compose up desde aquí
+└── shopping-insights-web/
+```
+
+- **Kaggle:** `KAGGLE_USERNAME` y `KAGGLE_KEY` en `.env.example` vienen precargadas para la
+  prueba técnica; Compose las pasa al ETL. Si faltan o fallan, el ETL usa el CSV del repo ETL.
+- **Rutas alternativas:** `ETL_REPO` y `WEB_REPO` en `.env` si no usas la estructura anterior.
+
 ## Inicio rápido: el stack completo
 
 Requisitos: **Git** y **Docker** con Docker Compose v2.
 
 ```bash
-# Los tres repos como carpetas hermanas
+# Los tres repos como carpetas hermanas bajo la misma carpeta padre
 git clone https://github.com/D4v13B/shopping-insights-etl.git
 git clone https://github.com/D4v13B/shopping-insights-api.git
 git clone https://github.com/D4v13B/shopping-insights-web.git
 
 cd shopping-insights-api
-cp .env.example .env
+cp .env.example .env    # stack + Kaggle (ver comentarios en el archivo)
 docker compose up --build
 ```
 
